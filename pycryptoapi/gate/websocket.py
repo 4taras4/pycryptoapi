@@ -20,82 +20,69 @@ class GateWebsocket(AbstractWebsocket):
         else:
             raise MarketException()
 
+    def _normalize_ticker(self, ticker: str) -> str:
+        """Convert ticker to Gate.io format (e.g., BTCUSDT -> BTC_USDT)"""
+        return ticker if ticker.endswith("_USDT") else ticker.replace("USDT", "_USDT")
+
+    def _create_message(self, payload) -> str:
+        """Create standard Gate.io subscription message"""
+        return json.dumps({
+            "time": int(time.time()),
+            "channel": self._topic,
+            "event": "subscribe",
+            "payload": payload,
+        })
+
     @property
     def _subscribe_message(self) -> Union[str, List[str]]:
-
-        if self._market_type == MarketType.SPOT:
-            if self._topic == "spot.trades":
-                payload = []
-                for t in self._tickers:
-                    if t.endswith("_USDT"):
-                        payload.append(t)
-                    else:
-                        payload.append(t.replace("USDT", "_USDT"))
-                data = {
-                    "time": int(time.time()),
-                    "channel": self._topic,
-                    "event": "subscribe",
-                    "payload": payload,
-                }
-                return json.dumps(data)
-            elif self._topic == "spot.candlesticks":
-                messages = []
-                for t in self._tickers:
-                    ticker = t if t.endswith("_USDT") else t.replace("USDT", "_USDT")
-                    data = {
-                        "time": int(time.time()),
-                        "channel": self._topic,
-                        "event": "subscribe",
-                        "payload": [self._timeframe, ticker],
-                    }
-                    messages.append(json.dumps(data))
-                return messages
-            else:
-                raise ValueError("Invalid topic.")
-
-        elif self._market_type == MarketType.FUTURES:
-            if self._topic == "futures.trades":
-                payload = []
-                for t in self._tickers:
-                    if t.endswith("_USDT"):
-                        payload.append(t)
-                    else:
-                        payload.append(t.replace("USDT", "_USDT"))
-                data = {
-                    "time": int(time.time()),
-                    "channel": self._topic,
-                    "event": "subscribe",
-                    "payload": payload,
-                }
-                return json.dumps(data)
-            elif self._topic == "futures.candlesticks":
-                messages = []
-                for t in self._tickers:
-                    ticker = t if t.endswith("_USDT") else t.replace("USDT", "_USDT")
-                    data = {
-                        "time": int(time.time()),
-                        "channel": self._topic,
-                        "event": "subscribe",
-                        "payload": [self._timeframe, ticker],
-                    }
-                    messages.append(json.dumps(data))
-                return messages
-            else:
-                raise ValueError("Invalid topic.")
-        else:
-            raise ValueError("Invalid exchange type. Choose either 'spot' or 'future'.")
+        # Handle tickers (no specific tickers needed)
+        if self._topic.endswith(".tickers"):
+            return self._create_message([])
+        
+        # Handle candlesticks (requires timeframe + ticker per message)
+        if self._topic.endswith(".candlesticks"):
+            if not self._timeframe:
+                raise TimeframeException()
+            return [
+                self._create_message([self._timeframe, self._normalize_ticker(ticker)])
+                for ticker in self._tickers
+            ]
+        
+        # Handle trades (list of tickers)
+        if self._topic.endswith(".trades"):
+            normalized_tickers = [self._normalize_ticker(ticker) for ticker in self._tickers]
+            return self._create_message(normalized_tickers)
+        
+        raise ValueError(f"Invalid topic: {self._topic}")
 
     @property
     def _ping_message(self) -> Optional[str]:
-        if self._market_type == MarketType.SPOT:
-            return json.dumps({"time": int(time.time()), "channel": "spot.ping"})
-        elif self._market_type == MarketType.FUTURES:
-            return json.dumps({"time": int(time.time()), "channel": "futures.ping"})
-        else:
-            raise MarketException()
+        channel = "spot.ping" if self._market_type == MarketType.SPOT else "futures.ping"
+        return json.dumps({"time": int(time.time()), "channel": channel})
 
 
 class GateSocketManager(AbstractSocketManager):
+
+    # Topic mapping for different market types
+    _TOPICS = {
+        MarketType.SPOT: {
+            "trades": "spot.trades",
+            "candlesticks": "spot.candlesticks", 
+            "tickers": "spot.tickers"
+        },
+        MarketType.FUTURES: {
+            "trades": "futures.trades",
+            "candlesticks": "futures.candlesticks",
+            "tickers": "futures.tickers"
+        }
+    }
+
+    @classmethod
+    def _get_topic(cls, market_type: MarketType, topic_type: str) -> str:
+        """Get topic string for given market type and topic type"""
+        if market_type not in cls._TOPICS:
+            raise MarketException()
+        return cls._TOPICS[market_type][topic_type]
 
     @classmethod
     def aggtrades_socket(
@@ -105,14 +92,8 @@ class GateSocketManager(AbstractSocketManager):
             callback: Callable[..., Awaitable],
             **kwargs
     ) -> GateWebsocket:
-        if market_type == MarketType.SPOT:
-            topic: str = "spot.trades"
-        elif market_type == MarketType.FUTURES:
-            topic: str = "futures.trades"
-        else:
-            raise MarketException()
         return GateWebsocket(
-            topic=topic,
+            topic=cls._get_topic(market_type, "trades"),
             tickers=tickers,
             market_type=market_type,
             callback=callback,
@@ -128,14 +109,8 @@ class GateSocketManager(AbstractSocketManager):
             callback: Callable[..., Awaitable],
             **kwargs
     ) -> GateWebsocket:
-        if market_type == MarketType.SPOT:
-            topic: str = "spot.candlesticks"
-        elif market_type == MarketType.FUTURES:
-            topic: str = "futures.candlesticks"
-        else:
-            raise MarketException()
         return GateWebsocket(
-            topic=topic,
+            topic=cls._get_topic(market_type, "candlesticks"),
             tickers=tickers,
             market_type=market_type,
             timeframe=timeframe.to_exchange_format(Exchange.GATE),
@@ -151,7 +126,12 @@ class GateSocketManager(AbstractSocketManager):
             timezone: Literal[""] = "+8",
             **kwargs
     ) -> GateWebsocket:
-        raise NotImplementedError()
+        return GateWebsocket(
+            topic=cls._get_topic(market_type, "tickers"),
+            market_type=market_type,
+            callback=callback,
+            **kwargs
+        )
 
     @classmethod
     def liquidations_socket(cls) -> GateWebsocket:
