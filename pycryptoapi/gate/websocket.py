@@ -38,6 +38,18 @@ class GateWebsocket(AbstractWebsocket):
                     "payload": payload,
                 }
                 return json.dumps(data)
+            elif self._topic == "spot.candlesticks":
+                messages = []
+                for t in self._tickers:
+                    ticker = t if t.endswith("_USDT") else t.replace("USDT", "_USDT")
+                    data = {
+                        "time": int(time.time()),
+                        "channel": self._topic,
+                        "event": "subscribe",
+                        "payload": [self._timeframe, ticker],
+                    }
+                    messages.append(json.dumps(data))
+                return messages
             else:
                 raise ValueError("Invalid topic.")
 
@@ -56,6 +68,18 @@ class GateWebsocket(AbstractWebsocket):
                     "payload": payload,
                 }
                 return json.dumps(data)
+            elif self._topic == "futures.candlesticks":
+                messages = []
+                for t in self._tickers:
+                    ticker = t if t.endswith("_USDT") else t.replace("USDT", "_USDT")
+                    data = {
+                        "time": int(time.time()),
+                        "channel": self._topic,
+                        "event": "subscribe",
+                        "payload": [self._timeframe, ticker],
+                    }
+                    messages.append(json.dumps(data))
+                return messages
             else:
                 raise ValueError("Invalid topic.")
         else:
@@ -104,7 +128,20 @@ class GateSocketManager(AbstractSocketManager):
             callback: Callable[..., Awaitable],
             **kwargs
     ) -> GateWebsocket:
-        raise NotImplementedError()
+        if market_type == MarketType.SPOT:
+            topic: str = "spot.candlesticks"
+        elif market_type == MarketType.FUTURES:
+            topic: str = "futures.candlesticks"
+        else:
+            raise MarketException()
+        return GateWebsocket(
+            topic=topic,
+            tickers=tickers,
+            market_type=market_type,
+            timeframe=timeframe.to_exchange_format(Exchange.GATE),
+            callback=callback,
+            **kwargs
+        )
 
     @classmethod
     def tickers_socket(

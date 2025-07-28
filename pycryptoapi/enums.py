@@ -83,6 +83,11 @@ class Timeframe(StrEnum):
                 Timeframe.MIN_30: "30m", Timeframe.HOUR_1: "1H", Timeframe.HOUR_2: "2H", Timeframe.HOUR_4: "4H",
                 Timeframe.HOUR_6: "6H", Timeframe.HOUR_12: "12H", Timeframe.DAY_1: "1D", Timeframe.DAY_3: "3D",
                 Timeframe.WEEK_1: "1W", Timeframe.MONTH_1: "1M"
+            },
+            Exchange.GATE: {
+                Timeframe.MIN_1: "1m", Timeframe.MIN_5: "5m", Timeframe.MIN_15: "15m", Timeframe.MIN_30: "30m",
+                Timeframe.HOUR_1: "1h", Timeframe.HOUR_4: "4h", Timeframe.HOUR_8: "8h", Timeframe.DAY_1: "1d",
+                Timeframe.WEEK_1: "7d"
             }
         }
 

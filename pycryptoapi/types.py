@@ -1,4 +1,9 @@
-from typing import TypedDict, Optional, Union, List, Dict, TypeAlias, Literal
+from typing import TypedDict, Optional, Union, List, Dict, Literal
+try:
+    from typing import TypeAlias
+except ImportError:
+    # TypeAlias is not available in Python < 3.10
+    TypeAlias = None
 
 from .enums import Side
 
@@ -49,8 +54,9 @@ class LiquidationDict(TypedDict):
     p: float  # price
 
 
-type price = float
-type size = float
+# Type aliases for price and size
+price = float
+size = float
 
 
 class DepthDict(TypedDict):
