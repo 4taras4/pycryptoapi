@@ -1,15 +1,23 @@
 __all__ = ["GateAdapter", ]
 
-from typing import Any, List, Dict
+from typing import Any, List, Dict, Union
 
 from ..abstract import AbstractAdapter
 from ..exceptions import AdapterException
-from ..types import TickerDailyItem, KlineDict, AggTradeDict, LiquidationDict, OpenInterestDict, DepthDict
+from ..types import (
+    TickerDailyItem,
+    KlineDict,
+    AggTradeDict,
+    LiquidationDict,
+    OpenInterestDict,
+    OpenInterestItem,
+    DepthDict,
+)
 
 
 class GateAdapter(AbstractAdapter):
     """
-    Адаптер для преобразования сырых данных MEXC в унифицированный вид.
+    Адаптер для преобразования сырых данных Gate в унифицированный вид.
     """
 
     @staticmethod
@@ -41,7 +49,7 @@ class GateAdapter(AbstractAdapter):
     @staticmethod
     def futures_tickers(raw_data: Any, only_usdt: bool = True) -> List[str]:
         """
-        Преобразует сырые данные фьючерсных тикеров MEXC в список символов.
+        Преобразует сырые данные фьючерсных тикеров Gate в список символов.
 
         :param raw_data: Сырые данные фьючерсных тикеров (словарь с ключом "data").
         :param only_usdt: Если True, возвращает только тикеры, оканчивающиеся на "_USDT".
@@ -135,12 +143,59 @@ class GateAdapter(AbstractAdapter):
         :return: Унифицированный объект Kline или список объектов Kline.
         :raises AdapterException: Если сообщение имеет неверную структуру или данные невозможно преобразовать.
         """
-        raise NotImplementedError()
+        try:
+            channel = raw_msg.get("channel")
+            result = raw_msg["result"]
+
+            # Нормализуем результат к списку
+            items = result if isinstance(result, list) else [result]
+
+            klines: List[KlineDict] = []
+            for item in items:
+                if channel == "futures.candlesticks":
+                    symbol = (
+                        item.get("contract")
+                        or raw_msg.get("contract")
+                        or item.get("s")
+                    )
+                elif channel == "spot.candlesticks":
+                    symbol = (
+                        item.get("currency_pair")
+                        or raw_msg.get("currency_pair")
+                        or item.get("s")
+                    )
+                else:
+                    raise AdapterException("Unknown format")
+
+                if symbol is None:
+                    raise AdapterException("Missing symbol in Gate kline message")
+
+                klines.append(
+                    KlineDict(
+                        s=symbol,
+                        t=int(float(item["t"])),
+                        o=float(item["o"]),
+                        h=float(item["h"]),
+                        l=float(item["l"]),
+                        c=float(item["c"]),
+                        v=float(item.get("v", 0.0)),
+                        T=None,
+                        x=None,
+                        i=item.get("n"),
+                    )
+                )
+
+            return klines
+
+        except KeyError as e:
+            raise AdapterException(f"Missing key in Gate kline message: {e}")
+        except (TypeError, ValueError) as e:
+            raise AdapterException(f"Invalid data format in Gate kline message: {e}")
 
     @staticmethod
     def aggtrades_message(raw_msg: Any) -> List[AggTradeDict]:
         """
-        Преобразует сырое сообщение с вебсокета MEXC в унифицированный вид.
+        Преобразует сырое сообщение с вебсокета Gate в унифицированный вид.
 
         :param raw_msg: Сырое сообщение с вебсокета.
         :return: Список унифицированных объектов AggTradeDict или None, если сообщение невалидно.
@@ -174,15 +229,27 @@ class GateAdapter(AbstractAdapter):
             raise AdapterException(f"Error processing Gate aggTrade({raw_msg}): {e}")
 
     @staticmethod
-    def open_interest(raw_data: Dict[str, Any], only_usdt: bool = True) -> OpenInterestDict:
+    def open_interest(raw_data: Any):
         """
-        Преобразует сырые данные открытого интереса для фьючерсных тикеров в унифицированный вид.
+        Преобразует сырые данные открытого интереса в унифицированный вид.
 
-        :param raw_data: Сырые данные открытого интереса.
-        :param only_usdt: Если True, возвращаются данные только для тикеров, оканчивающихся на 'USDT'.
-        :return: Cловарь с тикерами и их ставкой финансирования.
+        :param raw_data: Сырые данные открытого интереса по тикеру. Можно передать список данных.
+        :return: Cловарь с фьючерсными тикерами и их открытым интересом.
         """
-        raise NotImplementedError()
+        if isinstance(raw_data, dict):
+            return {raw_data["symbol"]: OpenInterestItem(
+                t=raw_data["time"],
+                v=raw_data["open_interest_usd"] / raw_data["mark_price"])}
+        elif isinstance(raw_data, list):
+            result = {}
+            for item in raw_data:
+                result[item["symbol"]] = OpenInterestItem(
+                    t=item["time"],
+                    v=item["open_interest_usd"] / item["mark_price"]
+                )
+            return result
+        else:
+            raise ValueError(f"Wrong raw_data type: {type(raw_data)}, excepted: list or dict")
 
     @staticmethod
     def liquidation_message(raw_msg: Any) -> List[LiquidationDict]:
@@ -193,4 +260,4 @@ class GateAdapter(AbstractAdapter):
         try:
             return AbstractAdapter._parse_and_sort_depth(raw_data["asks"], raw_data["bids"])
         except Exception as e:
-            raise AdapterException(f"BybitAdapter error: {e}")
+            raise AdapterException(f"GateAdapter error: {e}")
