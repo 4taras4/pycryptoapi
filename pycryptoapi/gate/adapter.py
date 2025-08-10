@@ -158,12 +158,29 @@ class GateAdapter(AbstractAdapter):
                         or raw_msg.get("contract")
                         or item.get("s")
                     )
+                    if symbol is None:
+                        # Derive symbol from Gate futures "n" field like "1m_BTC_USDT"
+                        n_field = item.get("n")
+                        if isinstance(n_field, str) and "_" in n_field:
+                            try:
+                                # split once to keep symbols with internal underscores (e.g., *_USDT)
+                                symbol = n_field.split("_", 1)[1]
+                            except Exception:
+                                symbol = None
                 elif channel == "spot.candlesticks":
                     symbol = (
                         item.get("currency_pair")
                         or raw_msg.get("currency_pair")
                         or item.get("s")
                     )
+                    if symbol is None:
+                        # Derive symbol from Gate spot "n" field like "1m_BTC_USDT"
+                        n_field = item.get("n")
+                        if isinstance(n_field, str) and "_" in n_field:
+                            try:
+                                symbol = n_field.split("_", 1)[1]
+                            except Exception:
+                                symbol = None
                 else:
                     raise AdapterException("Unknown format")
 

@@ -113,7 +113,7 @@ class GateSocketManager(AbstractSocketManager):
             topic=cls._get_topic(market_type, "candlesticks"),
             tickers=tickers,
             market_type=market_type,
-            timeframe=timeframe.to_exchange_format(Exchange.GATE),
+            timeframe=timeframe,
             callback=callback,
             **kwargs
         )
