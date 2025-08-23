@@ -158,7 +158,6 @@ class GateAdapter(AbstractAdapter):
             result = raw_msg.get("result")
             if result in (None, {}):
                 return []
-            print(f'result: {result}')
             # Нормализуем результат к списку
             items = result if isinstance(result, list) else [result]
 

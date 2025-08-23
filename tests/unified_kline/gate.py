@@ -7,7 +7,6 @@ from pycryptoapi.exceptions import AdapterException
 
 async def callback(msg):
     try:
-        print(msg)
         k = GateAdapter.kline_message(raw_msg=msg)
         for i in k:
             print(f'i: kline response: {i["s"]} {i["o"]} {i["h"]} {i["l"]} {i["c"]} {i["v"]} closed={i["x"]} tf={i["i"]}')
