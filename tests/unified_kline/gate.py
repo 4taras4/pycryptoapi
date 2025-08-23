@@ -18,7 +18,7 @@ async def main():
     socket = GateSocketManager.klines_socket(
         market_type=MarketType.FUTURES,
         timeframe='1m',
-        tickers=['BROCCOLIF3B_USDT', 'STMX_USDT', 'XCN_USDT', 'WLFI_USDT'],
+        tickers=['NEWT_USDT'],
         callback=callback
     )
 

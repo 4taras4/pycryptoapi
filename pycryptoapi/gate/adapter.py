@@ -198,7 +198,14 @@ class GateAdapter(AbstractAdapter):
                     return []
 
                 if symbol is None:
-                    raise AdapterException("Missing symbol in Gate kline message")
+                    # Try to infer from subscription payload (e.g., ["1m", "BTC_USDT"]) if present
+                    payload = raw_msg.get("payload")
+                    if isinstance(payload, list) and len(payload) >= 2 and isinstance(payload[1], str):
+                        symbol = payload[1]
+
+                if symbol is None:
+                    # Skip items where symbol cannot be determined instead of raising
+                    continue
 
                 # Extract timeframe from n like "1m_SYMBOL"
                 timeframe = None
