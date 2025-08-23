@@ -146,6 +146,7 @@ class GateAdapter(AbstractAdapter):
         try:
             channel = raw_msg.get("channel")
             # Обрабатываем только сообщения со свечами
+            print(f'channel: {channel}')
             if channel not in {"futures.candlesticks", "spot.candlesticks"}:
                 return []
 
@@ -157,7 +158,7 @@ class GateAdapter(AbstractAdapter):
             result = raw_msg.get("result")
             if result in (None, {}):
                 return []
-
+            print(f'result: {result}')
             # Нормализуем результат к списку
             items = result if isinstance(result, list) else [result]
 
