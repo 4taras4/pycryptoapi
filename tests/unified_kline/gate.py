@@ -10,15 +10,15 @@ async def callback(msg):
         print(msg)
         k = GateAdapter.kline_message(raw_msg=msg)
         for i in k:
-            print(i)
+            print(f'i: kline response: {i["s"]} {i["o"]} {i["h"]} {i["l"]} {i["c"]} {i["v"]} closed={i["x"]} tf={i["i"]}')
     except AdapterException as e:
         print(f"Can not adapt message ({e}): {msg}")
 
 async def main():
     socket = GateSocketManager.klines_socket(
-        market_type=MarketType.SPOT,
-        timeframe="1m",
-        tickers=["BTCUSDT"],
+        market_type=MarketType.FUTURES,
+        timeframe='1m',
+        tickers=['BROCCOLIF3B_USDT', 'STMX_USDT', 'XCN_USDT', 'WLFI_USDT'],
         callback=callback
     )
 

@@ -145,7 +145,18 @@ class GateAdapter(AbstractAdapter):
         """
         try:
             channel = raw_msg.get("channel")
-            result = raw_msg["result"]
+            # Обрабатываем только сообщения со свечами
+            if channel not in {"futures.candlesticks", "spot.candlesticks"}:
+                return []
+
+            # Пропускаем не-обновления (subscribe, ping/pong и т.п.)
+            event = raw_msg.get("event")
+            if event is not None and event != "update":
+                return []
+
+            result = raw_msg.get("result")
+            if result in (None, {}):
+                return []
 
             # Нормализуем результат к списку
             items = result if isinstance(result, list) else [result]
@@ -182,23 +193,40 @@ class GateAdapter(AbstractAdapter):
                             except Exception:
                                 symbol = None
                 else:
-                    raise AdapterException("Unknown format")
+                    # Должно быть недостижимо из-за ранней проверки канала
+                    return []
 
                 if symbol is None:
                     raise AdapterException("Missing symbol in Gate kline message")
 
+                # Extract timeframe from n like "1m_SYMBOL"
+                timeframe = None
+                n_field_for_interval = item.get("n")
+                if isinstance(n_field_for_interval, str) and "_" in n_field_for_interval:
+                    try:
+                        timeframe = n_field_for_interval.split("_", 1)[0]
+                    except Exception:
+                        timeframe = None
+
+                # Normalize timestamp to milliseconds
+                raw_t = int(float(item["t"]))
+                t_ms = raw_t * 1000 if raw_t < 10 ** 12 else raw_t
+
+                # Closed flag (Gate uses "w")
+                is_closed = item.get("w")
+
                 klines.append(
                     KlineDict(
                         s=symbol,
-                        t=int(float(item["t"])),
+                        t=t_ms,
                         o=float(item["o"]),
                         h=float(item["h"]),
                         l=float(item["l"]),
                         c=float(item["c"]),
                         v=float(item.get("v", 0.0)),
                         T=None,
-                        x=None,
-                        i=item.get("n"),
+                        x=is_closed,
+                        i=timeframe,
                     )
                 )
 
